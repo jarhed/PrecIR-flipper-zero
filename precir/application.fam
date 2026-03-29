@@ -1,0 +1,12 @@
+App(
+    appid="precir",
+    name="PrecIR",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="precir_app",
+    stack_size=8 * 1024,
+    fap_category="Infrared",
+    fap_description="Electronic Shelf Label IR communicator",
+    fap_author="furrtek",
+    fap_version="1.0",
+    fap_icon="images/precir_10px.png",
+)

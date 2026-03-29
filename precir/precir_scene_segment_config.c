@@ -1,0 +1,80 @@
+#include "precir_app.h"
+
+/** Parse a single hex character to its 4-bit value.
+ *  Returns -1 on invalid input. */
+static int8_t hex_nibble(char c) {
+    if(c >= '0' && c <= '9') return (int8_t)(c - '0');
+    if(c >= 'a' && c <= 'f') return (int8_t)(c - 'a' + 10);
+    if(c >= 'A' && c <= 'F') return (int8_t)(c - 'A' + 10);
+    return -1;
+}
+
+/** Parse a hex string into a byte buffer.
+ *  @param hex    hex string (must contain exactly num_bytes*2 hex chars)
+ *  @param out    output buffer
+ *  @param num_bytes  expected number of bytes
+ *  Returns true on success. */
+static bool parse_hex_string(const char* hex, uint8_t* out, size_t num_bytes) {
+    for(size_t i = 0; i < num_bytes; i++) {
+        int8_t hi = hex_nibble(hex[i * 2]);
+        int8_t lo = hex_nibble(hex[i * 2 + 1]);
+        if(hi < 0 || lo < 0) return false;
+        out[i] = (uint8_t)((hi << 4) | lo);
+    }
+    return true;
+}
+
+/** Text input callback. */
+static void precir_segment_config_input_callback(void* context) {
+    PrecIRApp* app = context;
+    view_dispatcher_send_custom_event(app->view_dispatcher, PrecIREventConfigDone);
+}
+
+/** on_enter: set up text input for hex segment bitmap. */
+void precir_scene_segment_config_on_enter(void* context) {
+    PrecIRApp* app = context;
+
+    app->text_store[0] = '\0';
+
+    text_input_set_header_text(app->text_input, "Segment Hex (46 chars)");
+    text_input_set_result_callback(
+        app->text_input,
+        precir_segment_config_input_callback,
+        app,
+        app->text_store,
+        PRECIR_TEXT_STORE_SIZE);
+
+    view_dispatcher_switch_to_view(app->view_dispatcher, PrecIRViewTextInput);
+}
+
+/** on_event: parse hex input and proceed to transmit. */
+bool precir_scene_segment_config_on_event(void* context, SceneManagerEvent event) {
+    PrecIRApp* app = context;
+    bool consumed = false;
+
+    if(event.type == SceneManagerEventTypeCustom) {
+        if(event.event == PrecIREventConfigDone) {
+            /* Validate length: need exactly 46 hex chars for 23 bytes */
+            size_t len = strlen(app->text_store);
+            if(len == PRECIR_SEGMENT_BITMAP * 2 &&
+               parse_hex_string(app->text_store, app->segment_bitmap, PRECIR_SEGMENT_BITMAP)) {
+                scene_manager_next_scene(app->scene_manager, PrecIRSceneTransmit);
+            } else {
+                /* Invalid input -- clear and stay on this scene for retry */
+                memset(app->segment_bitmap, 0, PRECIR_SEGMENT_BITMAP);
+                app->text_store[0] = '\0';
+                scene_manager_search_and_switch_to_previous_scene(
+                    app->scene_manager, PrecIRSceneSegmentConfig);
+            }
+            consumed = true;
+        }
+    }
+
+    return consumed;
+}
+
+/** on_exit: reset text input. */
+void precir_scene_segment_config_on_exit(void* context) {
+    PrecIRApp* app = context;
+    text_input_reset(app->text_input);
+}

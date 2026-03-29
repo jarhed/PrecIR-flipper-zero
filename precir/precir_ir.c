@@ -106,7 +106,7 @@ static FuriHalInfraredTxGetDataState
 
     /* Check if this was the very last symbol's space */
     if(!(*level) && tx->byte_pos >= tx->frame_len) {
-        return FuriHalInfraredTxGetDataStateLast;
+        return FuriHalInfraredTxGetDataStateDone;
     }
 
     return FuriHalInfraredTxGetDataStateOk;

@@ -7,6 +7,11 @@ static bool precir_app_back_event_callback(void* context) {
     return scene_manager_handle_back_event(app->scene_manager);
 }
 
+static bool precir_app_custom_event_callback(void* context, uint32_t event) {
+    PrecIRApp* app = context;
+    return scene_manager_handle_custom_event(app->scene_manager, event);
+}
+
 static void precir_app_tick_event_callback(void* context) {
     PrecIRApp* app = context;
     scene_manager_handle_tick_event(app->scene_manager);
@@ -29,8 +34,9 @@ PrecIRApp* precir_app_alloc(void) {
 
     /* View dispatcher */
     app->view_dispatcher = view_dispatcher_alloc();
-    view_dispatcher_enable_queue(app->view_dispatcher);
     view_dispatcher_set_event_callback_context(app->view_dispatcher, app);
+    view_dispatcher_set_custom_event_callback(
+        app->view_dispatcher, precir_app_custom_event_callback);
     view_dispatcher_set_navigation_event_callback(
         app->view_dispatcher, precir_app_back_event_callback);
     view_dispatcher_set_tick_event_callback(

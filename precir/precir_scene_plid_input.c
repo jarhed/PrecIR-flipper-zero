@@ -14,7 +14,7 @@ void precir_scene_plid_input_on_enter(void* context) {
 
     text_input_set_header_text(app->text_input, "Enter Barcode (17 digits)");
     text_input_set_result_callback(
-        app->text_input, precir_plid_input_callback, app, app->barcode, PRECIR_BARCODE_MAX_LEN);
+        app->text_input, precir_plid_input_callback, app, app->barcode, PRECIR_BARCODE_MAX_LEN, true);
 
     view_dispatcher_switch_to_view(app->view_dispatcher, PrecIRViewTextInput);
 }

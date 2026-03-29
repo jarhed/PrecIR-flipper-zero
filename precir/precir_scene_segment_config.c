@@ -42,7 +42,8 @@ void precir_scene_segment_config_on_enter(void* context) {
         precir_segment_config_input_callback,
         app,
         app->text_store,
-        PRECIR_TEXT_STORE_SIZE);
+        PRECIR_TEXT_STORE_SIZE,
+        true);
 
     view_dispatcher_switch_to_view(app->view_dispatcher, PrecIRViewTextInput);
 }

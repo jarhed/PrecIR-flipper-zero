@@ -8,7 +8,7 @@
 
 /* ---- on_enter handlers ---- */
 
-static const on_enter_handler scene_on_enter[] = {
+static const AppSceneOnEnterCallback scene_on_enter[] = {
     SCENE_ON_ENTER(main_menu),
     SCENE_ON_ENTER(plid_input),
     SCENE_ON_ENTER(dm_config),
@@ -20,7 +20,7 @@ static const on_enter_handler scene_on_enter[] = {
 
 /* ---- on_event handlers ---- */
 
-static const on_event_handler scene_on_event[] = {
+static const AppSceneOnEventCallback scene_on_event[] = {
     SCENE_ON_EVENT(main_menu),
     SCENE_ON_EVENT(plid_input),
     SCENE_ON_EVENT(dm_config),
@@ -32,7 +32,7 @@ static const on_event_handler scene_on_event[] = {
 
 /* ---- on_exit handlers ---- */
 
-static const on_exit_handler scene_on_exit[] = {
+static const AppSceneOnExitCallback scene_on_exit[] = {
     SCENE_ON_EXIT(main_menu),
     SCENE_ON_EXIT(plid_input),
     SCENE_ON_EXIT(dm_config),

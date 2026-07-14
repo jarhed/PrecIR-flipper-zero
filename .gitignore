@@ -12,9 +12,11 @@ gui/
 *.o
 *.elf
 *.map
+*.pdb
 *.d
 *.psd
 *.bat
 *.eep
 *.lss
 tools_python/test_mul8.py
+.vscode/

@@ -16,10 +16,11 @@
 #include "precir_protocol.h"
 #include "precir_ir.h"
 #include "precir_image.h"
+#include "precir_profiles.h"
 #include "precir_scene.h"
 
 #define PRECIR_BARCODE_MAX_LEN 18
-#define PRECIR_TEXT_STORE_SIZE  64
+#define PRECIR_TEXT_STORE_SIZE 64
 
 /* ---- View IDs ---- */
 
@@ -51,6 +52,13 @@ typedef struct {
     Widget* widget;
     Popup* popup;
 
+    /* Saved tags.  The on-disk format is intentionally stable (PCRP v1). */
+    PrecIRProfileStore profiles;
+    int8_t active_profile;
+    bool profile_list_calibration;
+    bool pending_auto_calibrate;
+    bool auto_calibrate;
+
     /* IR transmitter */
     PrecIRTransmitter* transmitter;
 
@@ -65,24 +73,57 @@ typedef struct {
     PrecIRDisplaySize display_size;
     PrecIRColorMode color_mode;
     PrecIRProtocolMode protocol_mode;
+    uint8_t display_page;
 
     /* Image */
     FuriString* image_path;
     uint8_t* image_data;
     size_t image_data_len;
     uint8_t image_compression; /* 0=raw, 2=RLE */
-    uint8_t* color_data;      /* second layer for color displays */
-    size_t color_data_len;
-    uint8_t color_compression; /* 0=raw, 2=RLE */
+
+    /* Current action / calibration workflow. */
+    PrecIRTransmitKind transmit_kind;
+    uint8_t calibration_index;
+    PrecIRCalibrationState calibration_state;
+    uint32_t calibration_start_tick;
 
     /* Segment display */
     uint8_t segment_bitmap[PRECIR_SEGMENT_BITMAP];
 
     /* Transmission progress */
+    FuriThread* tx_thread;
+    FuriMutex* tx_mutex;
     bool transmitting;
+    bool tx_cancel_requested;
+    bool tx_success;
     uint16_t tx_progress;
     uint16_t tx_total;
 } PrecIRApp;
+
+/** Return the active saved profile, or NULL when none is selected. */
+PrecIRProfile* precir_app_active_profile(PrecIRApp* app);
+
+/** Load the active profile into the editable runtime fields. */
+bool precir_app_load_active_profile(PrecIRApp* app);
+
+/** Commit runtime settings to the active profile and save them transactionally. */
+bool precir_app_commit_active_settings(PrecIRApp* app);
+
+/** Release the currently prepared image payload and clear its metadata. */
+void precir_app_free_image(PrecIRApp* app);
+
+/** Decode and prepare a BMP using the current display settings. */
+bool precir_app_load_image(PrecIRApp* app, const char* path);
+
+/** Prepare an all-white payload using the current display settings. */
+bool precir_app_make_white_image(PrecIRApp* app);
+
+/** Show a small modal message with one right-side button. */
+DialogMessageButton precir_app_show_message(
+    PrecIRApp* app,
+    const char* title,
+    const char* text,
+    const char* right_button);
 
 /** Allocate and initialize the application. */
 PrecIRApp* precir_app_alloc(void);

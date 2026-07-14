@@ -4,19 +4,20 @@ void precir_scene_about_on_enter(void* context) {
     PrecIRApp* app = context;
 
     widget_reset(app->widget);
-
-    widget_add_string_element(
-        app->widget, 64, 2, AlignCenter, AlignTop, FontPrimary, "PrecIR for Flipper Zero");
-    widget_add_string_element(
-        app->widget, 64, 16, AlignCenter, AlignTop, FontSecondary, "ESL IR Communicator");
-    widget_add_string_element(
-        app->widget, 64, 32, AlignCenter, AlignTop, FontSecondary, "Based on furrtek's PrecIR");
-    widget_add_string_element(
-        app->widget, 64, 44, AlignCenter, AlignTop, FontSecondary, "github.com/furrtek/PrecIR");
-    widget_add_string_element(
-        app->widget, 64, 60, AlignCenter, AlignTop, FontSecondary, "Carrier: 1.263 MHz");
-    widget_add_string_element(
-        app->widget, 64, 72, AlignCenter, AlignTop, FontSecondary, "Protocols: PP4, PP16");
+    widget_add_text_box_element(
+        app->widget,
+        4,
+        2,
+        120,
+        60,
+        AlignCenter,
+        AlignTop,
+        "\e#PrecIR Profiles 2.1.1\e#\n"
+        "Pricer ESL IR sender\n"
+        "Saved barcode + BMP profiles\n"
+        "White-screen calibration\n"
+        "1.25 MHz | PP4 / PP16",
+        false);
 
     view_dispatcher_switch_to_view(app->view_dispatcher, PrecIRViewWidget);
 }

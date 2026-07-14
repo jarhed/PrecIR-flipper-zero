@@ -5,8 +5,8 @@ App(
     entry_point="precir_app",
     stack_size=8 * 1024,
     fap_category="Infrared",
-    fap_description="Electronic Shelf Label IR communicator",
-    fap_author="furrtek",
-    fap_version="1.0",
+    fap_description="Pricer ESL communicator using the built-in IR LED",
+    fap_author="jarhed + PrecIR contributors",
+    fap_version="2.1.1",
     fap_icon="images/precir_10px.png",
 )

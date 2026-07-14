@@ -14,6 +14,21 @@ PrecIRTransmitter* precir_ir_alloc(void);
 /** Free transmitter. */
 void precir_ir_free(PrecIRTransmitter* tx);
 
+/** Request cancellation of the active operation.
+ *  Cancellation is observed between complete frames and while waiting between
+ *  repeats. A single frame is allowed to finish so its timing is not damaged. */
+void precir_ir_stop(PrecIRTransmitter* tx);
+
+/** Clear a previous cancellation before starting a new operation.
+ *  Returns false if an operation is already active. */
+bool precir_ir_reset_cancel(PrecIRTransmitter* tx);
+
+/** Return true while an operation owns the transmitter. */
+bool precir_ir_is_busy(const PrecIRTransmitter* tx);
+
+/** Run protocol waveform checks without touching the IR hardware. */
+bool precir_ir_self_test(void);
+
 /** Set the protocol mode (PP4 / PP16). */
 void precir_ir_set_protocol(PrecIRTransmitter* tx, PrecIRProtocolMode mode);
 
@@ -55,8 +70,9 @@ bool precir_ir_send_image(
 
 /** Send a segment update.
  *  @param plid    4-byte PLID
- *  @param bitmap  23-byte segment bitmap */
-void precir_ir_send_segment(
+ *  @param bitmap  23-byte segment bitmap
+ *  Returns true when every repeated frame was sent. */
+bool precir_ir_send_segment(
     PrecIRTransmitter* tx,
     const uint8_t plid[4],
     const uint8_t bitmap[PRECIR_SEGMENT_BITMAP]);

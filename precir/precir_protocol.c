@@ -12,7 +12,8 @@ static void plid_to_wire(uint8_t* dst, const uint8_t plid[4]) {
 }
 
 /** Build the 6-byte "raw" frame header: [protocol][PLID wire order][cmd]. */
-static size_t frame_raw_header(uint8_t* buf, uint8_t protocol, const uint8_t plid[4], uint8_t cmd) {
+static size_t
+    frame_raw_header(uint8_t* buf, uint8_t protocol, const uint8_t plid[4], uint8_t cmd) {
     buf[0] = protocol;
     plid_to_wire(&buf[1], plid);
     buf[5] = cmd;
@@ -47,40 +48,66 @@ static void append_crc(uint8_t* buf, size_t* pos, size_t crc_start) {
 
 /* ---- PLID ---- */
 
+static uint32_t parse_decimal_field(const char* text, size_t start, size_t length) {
+    uint32_t value = 0;
+    for(size_t i = 0; i < length; i++) {
+        value = value * 10U + (uint32_t)(text[start + i] - '0');
+    }
+    return value;
+}
+
+PrecIRBarcodeValidation precir_barcode_validate(const char* barcode) {
+    if(!barcode) return PrecIRBarcodeInvalidLength;
+
+    size_t length = 0;
+    while(length <= 17U && barcode[length] != '\0') {
+        length++;
+    }
+    if(length != 17U || barcode[17] != '\0') return PrecIRBarcodeInvalidLength;
+
+    if(barcode[0] < 'A' || barcode[0] > 'Z') return PrecIRBarcodeInvalidFormat;
+    if(barcode[1] != '4') return PrecIRBarcodeInvalidFamily;
+
+    for(size_t i = 2; i < 17U; i++) {
+        if(barcode[i] < '0' || barcode[i] > '9') return PrecIRBarcodeInvalidFormat;
+    }
+
+    const uint32_t first_address = parse_decimal_field(barcode, 2, 5);
+    const uint32_t second_address = parse_decimal_field(barcode, 7, 5);
+    if(first_address > UINT16_MAX || second_address > UINT16_MAX) {
+        return PrecIRBarcodeAddressOutOfRange;
+    }
+
+    uint32_t checksum = 0;
+    for(size_t i = 0; i < 16U; i++) {
+        checksum += (uint8_t)barcode[i];
+    }
+    if((checksum % 10U) != (uint32_t)(barcode[16] - '0')) {
+        return PrecIRBarcodeInvalidChecksum;
+    }
+
+    return PrecIRBarcodeValid;
+}
+
 bool precir_plid_from_barcode(const char* barcode, uint8_t plid[4]) {
-    if(!barcode) return false;
+    if(!plid || precir_barcode_validate(barcode) != PrecIRBarcodeValid) return false;
 
-    /* Must be exactly 17 characters. */
-    size_t len = 0;
-    for(const char* p = barcode; *p; p++) len++;
-    if(len != 17) return false;
-
-    /* Parse two 5-digit groups from barcode[2..6] and barcode[7..11]. */
-    uint32_t lo = 0;
-    for(int i = 2; i < 7; i++) {
-        char c = barcode[i];
-        if(c < '0' || c > '9') return false;
-        lo = lo * 10 + (uint32_t)(c - '0');
-    }
-
-    uint32_t hi = 0;
-    for(int i = 7; i < 12; i++) {
-        char c = barcode[i];
-        if(c < '0' || c > '9') return false;
-        hi = hi * 10 + (uint32_t)(c - '0');
-    }
-
-    uint32_t id_value = lo + (hi << 16);
+    const uint32_t lo = parse_decimal_field(barcode, 2, 5);
+    const uint32_t hi = parse_decimal_field(barcode, 7, 5);
+    const uint32_t id_value = lo + (hi << 16);
+    uint8_t result[4];
 
     /* Match Python's get_plid byte ordering:
      *   PLID[0] = (id_value >> 8) & 0xFF
      *   PLID[1] = id_value & 0xFF
      *   PLID[2] = (id_value >> 24) & 0xFF
      *   PLID[3] = (id_value >> 16) & 0xFF */
-    plid[0] = (uint8_t)((id_value >> 8) & 0xFF);
-    plid[1] = (uint8_t)(id_value & 0xFF);
-    plid[2] = (uint8_t)((id_value >> 24) & 0xFF);
-    plid[3] = (uint8_t)((id_value >> 16) & 0xFF);
+    result[0] = (uint8_t)((id_value >> 8) & 0xFF);
+    result[1] = (uint8_t)(id_value & 0xFF);
+    result[2] = (uint8_t)((id_value >> 24) & 0xFF);
+    result[3] = (uint8_t)((id_value >> 16) & 0xFF);
+
+    memcpy(plid, result, sizeof(result));
 
     return true;
 }
@@ -103,6 +130,63 @@ uint16_t precir_crc16(const uint8_t* data, size_t len) {
     }
 
     return result;
+}
+
+bool precir_protocol_self_test(void) {
+    static const uint8_t crc_input[] = {
+        0x84,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0xAB,
+        0x11,
+        0x00,
+        0x00,
+    };
+    static const uint8_t expected_plid[] = {0xE7, 0x01, 0x45, 0x63};
+    static const uint8_t expected_wake[] = {
+        0x85, 0x63, 0x45, 0x01, 0xE7, 0x17, 0x01, 0x00, 0x00, 0x00, 0x01, 0x01,
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x8E, 0x61,
+    };
+    static const uint8_t expected_refresh[] = {
+        0x85, 0x63, 0x45, 0x01, 0xE7, 0x34, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF3, 0xA3,
+    };
+    static const uint8_t expected_params[] = {
+        0x85, 0x63, 0x45, 0x01, 0xE7, 0x34, 0x00, 0x00, 0x00, 0x05, 0x00, 0x28,
+        0x00, 0x02, 0x03, 0x00, 0x08, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x88, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0xA3,
+    };
+    uint8_t plid[4];
+    uint8_t frame[PRECIR_FRAME_MAX];
+    size_t frame_len;
+
+    if(precir_crc16(crc_input, sizeof(crc_input)) != 0xE4A5) return false;
+    if(!precir_plid_from_barcode("G4591371776312423", plid)) return false;
+    if(memcmp(plid, expected_plid, sizeof(expected_plid)) != 0) return false;
+
+    frame_len = precir_build_wake_frame(frame, plid);
+    if(frame_len != sizeof(expected_wake) ||
+       memcmp(frame, expected_wake, sizeof(expected_wake)) != 0) {
+        return false;
+    }
+
+    frame_len = precir_build_refresh_frame(frame, plid);
+    if(frame_len != sizeof(expected_refresh) ||
+       memcmp(frame, expected_refresh, sizeof(expected_refresh)) != 0) {
+        return false;
+    }
+
+    frame_len = precir_build_params_frame(frame, plid, 40, 2, 3, 8, 1);
+    if(frame_len != sizeof(expected_params) ||
+       memcmp(frame, expected_params, sizeof(expected_params)) != 0) {
+        return false;
+    }
+
+    return true;
 }
 
 /* ---- Frame building ---- */

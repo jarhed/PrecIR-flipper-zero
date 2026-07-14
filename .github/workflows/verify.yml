@@ -1,0 +1,49 @@
+name: Verify
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install portable C compiler
+        run: python -m pip install ziglang==0.15.2
+
+      - name: Run Python reference vectors
+        run: python -m unittest discover -s tests -v
+
+      - name: Build and run protocol tests
+        run: |
+          python -m ziglang cc -std=c11 -Wall -Wextra -Werror \
+            tests/protocol_host_test.c precir/precir_protocol.c \
+            -o tests/protocol_host_test
+          ./tests/protocol_host_test
+
+      - name: Build and run image tests
+        run: |
+          python -m ziglang cc -std=c11 -Wall -Wextra -Werror \
+            -I tests/host_stubs \
+            tests/image_host_test.c precir/precir_image.c \
+            -o tests/image_host_test
+          ./tests/image_host_test
+
+      - name: Build and run profile tests
+        run: |
+          python -m ziglang cc -std=c11 -Wall -Wextra -Werror \
+            -I tests/profile_host_stubs -I precir \
+            tests/profiles_host_test.c precir/precir_profiles.c precir/precir_protocol.c \
+            -o tests/profiles_host_test
+          ./tests/profiles_host_test

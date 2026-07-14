@@ -6,12 +6,12 @@
 
 /* ---- Carrier & timing constants ---- */
 
-#define PRECIR_CARRIER_FREQ 1263000 /* 1.263 MHz */
+#define PRECIR_CARRIER_FREQ 1250000 /* Protocol target: 1.25 MHz */
 #define PRECIR_DUTY_CYCLE   0.50f
 
 /* PP4 timing (microseconds) */
 #define PRECIR_PP4_BURST_US 40
-/* Symbol total durations for 2-bit values 0..3 */
+/* Quiet gap after each burst for 2-bit values 0..3. */
 #define PRECIR_PP4_SYM0_US  61
 #define PRECIR_PP4_SYM1_US  244
 #define PRECIR_PP4_SYM2_US  122
@@ -19,20 +19,18 @@
 
 /* PP16 timing (microseconds) */
 #define PRECIR_PP16_BURST_US 21
-/* Base spacing: symbol N total = BURST + (N+1)*8 us  (approx) */
-/* Exact durations from firmware lookup table: */
-/* Nibble 0..15 → total symbol duration in us */
+/* PP16 gaps use a non-linear lookup table in precir_ir.c. */
 
 /* Protocol bytes */
 #define PRECIR_PROTO_SEGMENT 0x84
 #define PRECIR_PROTO_DM      0x85
 
 /* Commands */
-#define PRECIR_CMD_WAKE      0x17
-#define PRECIR_CMD_PARAMS    0x05
-#define PRECIR_CMD_DATA      0x20
-#define PRECIR_CMD_REFRESH   0x01
-#define PRECIR_CMD_SEGMENT   0xBA
+#define PRECIR_CMD_WAKE    0x17
+#define PRECIR_CMD_PARAMS  0x05
+#define PRECIR_CMD_DATA    0x20
+#define PRECIR_CMD_REFRESH 0x01
+#define PRECIR_CMD_SEGMENT 0xBA
 
 /* Frame constants */
 #define PRECIR_DATA_PER_FRAME  20
@@ -53,19 +51,28 @@ typedef enum {
 
 typedef enum {
     PrecIRDisplaySizeMedium, /* 208 x 112 */
-    PrecIRDisplaySizeLarge,  /* 296 x 128 */
+    PrecIRDisplaySizeLarge, /* 296 x 128 */
 } PrecIRDisplaySize;
 
 typedef enum {
     PrecIRColorModeBW,
-    PrecIRColorModeBWR,  /* black/white/red */
-    PrecIRColorMode4C,   /* 4-color */
+    PrecIRColorModeBWR, /* black/white/red */
+    PrecIRColorMode4C, /* 4-color */
 } PrecIRColorMode;
 
 typedef enum {
     PrecIRProtocolPP4,
     PrecIRProtocolPP16,
 } PrecIRProtocolMode;
+
+typedef enum {
+    PrecIRBarcodeValid,
+    PrecIRBarcodeInvalidLength,
+    PrecIRBarcodeInvalidFormat,
+    PrecIRBarcodeInvalidFamily,
+    PrecIRBarcodeAddressOutOfRange,
+    PrecIRBarcodeInvalidChecksum,
+} PrecIRBarcodeValidation;
 
 /* ---- Display dimensions helper ---- */
 
@@ -79,9 +86,15 @@ static inline uint16_t precir_display_height(PrecIRDisplaySize size) {
 
 /* ---- PLID ---- */
 
-/** Parse a 17-character barcode string into a 4-byte PLID.
- *  Returns true on success. */
+/** Validate a 17-character ESL barcode without reading past its terminator. */
+PrecIRBarcodeValidation precir_barcode_validate(const char* barcode);
+
+/** Parse a validated 17-character barcode string into a 4-byte PLID.
+ *  Returns true on success and leaves plid untouched on failure. */
 bool precir_plid_from_barcode(const char* barcode, uint8_t plid[4]);
+
+/** Run protocol golden-vector checks. */
+bool precir_protocol_self_test(void);
 
 /* ---- CRC ---- */
 

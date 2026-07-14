@@ -1,84 +1,88 @@
 #include "precir_app.h"
 
-/** Submenu callback -- forwards the selected index as a custom event. */
-static void precir_scene_main_menu_submenu_callback(void* context, uint32_t index) {
+enum {
+    PrecIRMainSelectionProfileList,
+    PrecIRMainSelectionNewTag,
+    PrecIRMainSelectionTestClear,
+    PrecIRMainSelectionAbout,
+};
+
+static void precir_main_menu_callback(void* context, uint32_t index) {
     PrecIRApp* app = context;
     view_dispatcher_send_custom_event(app->view_dispatcher, index);
 }
 
-/** on_enter: populate submenu and switch to it. */
 void precir_scene_main_menu_on_enter(void* context) {
     PrecIRApp* app = context;
 
     submenu_reset(app->submenu);
+    app->active_profile = -1;
+
+    snprintf(
+        app->text_store,
+        sizeof(app->text_store),
+        "Saved Tags (%u)",
+        (unsigned int)app->profiles.count);
 
     submenu_add_item(
-        app->submenu,
-        "Send Image",
-        PrecIREventSendImage,
-        precir_scene_main_menu_submenu_callback,
-        app);
-
+        app->submenu, app->text_store, PrecIREventProfileList, precir_main_menu_callback, app);
+    submenu_add_item(app->submenu, "+ New Tag", PrecIREventNewTag, precir_main_menu_callback, app);
     submenu_add_item(
-        app->submenu,
-        "Set Segments",
-        PrecIREventSetSegments,
-        precir_scene_main_menu_submenu_callback,
-        app);
-
-    submenu_add_item(
-        app->submenu,
-        "About",
-        PrecIREventAbout,
-        precir_scene_main_menu_submenu_callback,
-        app);
+        app->submenu, "Test Clear", PrecIREventTestClear, precir_main_menu_callback, app);
+    submenu_add_item(app->submenu, "About", PrecIREventAbout, precir_main_menu_callback, app);
 
     submenu_set_selected_item(
-        app->submenu,
-        scene_manager_get_scene_state(app->scene_manager, PrecIRSceneMainMenu));
-
+        app->submenu, scene_manager_get_scene_state(app->scene_manager, PrecIRSceneMainMenu));
     view_dispatcher_switch_to_view(app->view_dispatcher, PrecIRViewSubmenu);
 }
 
-/** on_event: handle custom events from the submenu. */
 bool precir_scene_main_menu_on_event(void* context, SceneManagerEvent event) {
     PrecIRApp* app = context;
-    bool consumed = false;
+    if(event.type != SceneManagerEventTypeCustom) return false;
 
-    if(event.type == SceneManagerEventTypeCustom) {
-        switch(event.event) {
-        case PrecIREventSendImage:
-            app->display_type = PrecIRDisplayTypeDM;
-            scene_manager_set_scene_state(
-                app->scene_manager, PrecIRSceneMainMenu, PrecIREventSendImage);
-            scene_manager_next_scene(app->scene_manager, PrecIRScenePLIDInput);
-            consumed = true;
-            break;
+    switch(event.event) {
+    case PrecIREventProfileList:
+        scene_manager_set_scene_state(
+            app->scene_manager, PrecIRSceneMainMenu, PrecIRMainSelectionProfileList);
+        app->profile_list_calibration = false;
+        scene_manager_next_scene(app->scene_manager, PrecIRSceneProfileList);
+        return true;
 
-        case PrecIREventSetSegments:
-            app->display_type = PrecIRDisplayTypeSegment;
-            scene_manager_set_scene_state(
-                app->scene_manager, PrecIRSceneMainMenu, PrecIREventSetSegments);
-            scene_manager_next_scene(app->scene_manager, PrecIRScenePLIDInput);
-            consumed = true;
-            break;
-
-        case PrecIREventAbout:
-            scene_manager_set_scene_state(
-                app->scene_manager, PrecIRSceneMainMenu, PrecIREventAbout);
-            scene_manager_next_scene(app->scene_manager, PrecIRSceneAbout);
-            consumed = true;
-            break;
-
-        default:
-            break;
+    case PrecIREventNewTag:
+        scene_manager_set_scene_state(
+            app->scene_manager, PrecIRSceneMainMenu, PrecIRMainSelectionNewTag);
+        if(app->profiles.count >= PRECIR_PROFILE_MAX_COUNT) {
+            precir_app_show_message(
+                app, "Profiles full", "Delete one of the 8\nsaved tags first.", "OK");
+            return true;
         }
-    }
+        app->pending_auto_calibrate = false;
+        scene_manager_next_scene(app->scene_manager, PrecIRScenePLIDInput);
+        return true;
 
-    return consumed;
+    case PrecIREventTestClear:
+        scene_manager_set_scene_state(
+            app->scene_manager, PrecIRSceneMainMenu, PrecIRMainSelectionTestClear);
+        if(app->profiles.count == 0U) {
+            app->pending_auto_calibrate = true;
+            scene_manager_next_scene(app->scene_manager, PrecIRScenePLIDInput);
+        } else {
+            app->profile_list_calibration = true;
+            scene_manager_next_scene(app->scene_manager, PrecIRSceneProfileList);
+        }
+        return true;
+
+    case PrecIREventAbout:
+        scene_manager_set_scene_state(
+            app->scene_manager, PrecIRSceneMainMenu, PrecIRMainSelectionAbout);
+        scene_manager_next_scene(app->scene_manager, PrecIRSceneAbout);
+        return true;
+
+    default:
+        return false;
+    }
 }
 
-/** on_exit: clean up the submenu. */
 void precir_scene_main_menu_on_exit(void* context) {
     PrecIRApp* app = context;
     submenu_reset(app->submenu);

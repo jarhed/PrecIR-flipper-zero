@@ -24,6 +24,28 @@ static bool parse_hex_string(const char* hex, uint8_t* out, size_t num_bytes) {
     return true;
 }
 
+static bool precir_segment_config_validator(const char* text, FuriString* error, void* context) {
+    UNUSED(context);
+
+    size_t length = 0;
+    while(length <= PRECIR_SEGMENT_BITMAP * 2U && text[length] != '\0') {
+        length++;
+    }
+    if(length != PRECIR_SEGMENT_BITMAP * 2U) {
+        furi_string_set(error, "Enter exactly 46 hex characters");
+        return false;
+    }
+
+    for(size_t i = 0; i < length; i++) {
+        if(hex_nibble(text[i]) < 0) {
+            furi_string_set(error, "Use hexadecimal digits 0-9, A-F");
+            return false;
+        }
+    }
+
+    return true;
+}
+
 /** Text input callback. */
 static void precir_segment_config_input_callback(void* context) {
     PrecIRApp* app = context;
@@ -35,8 +57,11 @@ void precir_scene_segment_config_on_enter(void* context) {
     PrecIRApp* app = context;
 
     app->text_store[0] = '\0';
+    app->protocol_mode = PrecIRProtocolPP4;
 
     text_input_set_header_text(app->text_input, "Segment Hex (46 chars)");
+    text_input_set_minimum_length(app->text_input, PRECIR_SEGMENT_BITMAP * 2U);
+    text_input_set_validator(app->text_input, precir_segment_config_validator, app);
     text_input_set_result_callback(
         app->text_input,
         precir_segment_config_input_callback,
@@ -59,13 +84,14 @@ bool precir_scene_segment_config_on_event(void* context, SceneManagerEvent event
             size_t len = strlen(app->text_store);
             if(len == PRECIR_SEGMENT_BITMAP * 2 &&
                parse_hex_string(app->text_store, app->segment_bitmap, PRECIR_SEGMENT_BITMAP)) {
+                app->protocol_mode = PrecIRProtocolPP4;
+                app->transmit_kind = PrecIRTransmitKindSegments;
                 scene_manager_next_scene(app->scene_manager, PrecIRSceneTransmit);
             } else {
-                /* Invalid input -- clear and stay on this scene for retry */
+                /* Defensive fallback; the text-input validator normally catches this. */
                 memset(app->segment_bitmap, 0, PRECIR_SEGMENT_BITMAP);
                 app->text_store[0] = '\0';
-                scene_manager_search_and_switch_to_previous_scene(
-                    app->scene_manager, PrecIRSceneSegmentConfig);
+                text_input_set_header_text(app->text_input, "Invalid hex - retry");
             }
             consumed = true;
         }
